@@ -34,5 +34,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-public/frames/
 Shoe 1.mp4
