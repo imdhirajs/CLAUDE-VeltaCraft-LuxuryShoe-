@@ -3,25 +3,163 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-deep:       #0A0805;
+  --bg-section:    #130E08;
+  --leather:       #8B4513;
+  --leather-light: #A0522D;
+  --gold:          #CFB53B;
+  --gold-light:    #E8D48A;
+  --cream:         #FAF0E6;
+  --cream-muted:   #C8B89A;
+
+  --gradient-hero: linear-gradient(180deg, #0A0805 0%, #1A0F07 50%, #0A0805 100%);
+  --gradient-gold: linear-gradient(135deg, #CFB53B 0%, #E8D48A 50%, #CFB53B 100%);
+  --gradient-text: linear-gradient(135deg, #FAF0E6 0%, #CFB53B 40%, #E8D48A 100%);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base resets ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  cursor: none;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-deep);
+  color: var(--cream);
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  overflow-x: hidden;
+  opacity: 0;
+  animation: pageFadeIn 0.6s ease forwards;
+  animation-delay: 0.1s;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+@keyframes pageFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Grain texture overlay (body::after) ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── Custom cursor ── */
+.cursor-inner {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10000;
+  transform: translate(-50%, -50%);
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  mix-blend-mode: difference;
+}
+
+.cursor-outer {
+  position: fixed;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(207, 181, 59, 0.5);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10000;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s ease, height 0.3s ease, background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.cursor-inner.hover {
+  background-color: var(--gold);
+  border-color: var(--gold);
+  transform: translate(-50%, -50%) scale(1.5);
+}
+
+.cursor-outer.hover {
+  background-color: rgba(207, 181, 59, 0.15);
+  border-color: var(--gold);
+  width: 48px;
+  height: 48px;
+}
+
+/* ── Scroll progress bar ── */
+.scroll-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 1px;
+  background: var(--gold);
+  z-index: 9998;
+  pointer-events: none;
+  transform-origin: left center;
+}
+
+/* ── Gradient text utilities ── */
+.text-gradient {
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #CFB53B, #E8D48A, #FAF0E6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(207, 181, 59, 0.2);
+  color: var(--cream);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(207, 181, 59, 0.3);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
+}
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  html {
+    cursor: auto;
+  }
+  .cursor-inner,
+  .cursor-outer {
+    display: none;
+  }
+
+  /* Features section: stack to single column on mobile */
+  .features-grid {
+    grid-template-columns: 1fr !important;
+    gap: 48px !important;
+  }
+
+  /* Navbar: tighten padding on mobile */
+  .nav-inner {
+    padding: 0 24px !important;
   }
 }
