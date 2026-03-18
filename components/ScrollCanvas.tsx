@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useCallback, RefObject } from 'react'
+import { useEffect, useRef, useCallback, RefObject, useState } from 'react'
 import { useScrollProgress } from '@/hooks/useScrollProgress'
 
-// Total frames extracted from Shoe 1.mp4 at ~24fps (~192 frames)
 const TOTAL_FRAMES = 192
 
 interface ScrollCanvasProps {
@@ -21,8 +20,56 @@ export default function ScrollCanvas({
   const framesRef = useRef<(HTMLImageElement | null)[]>([])
   const currentFrameRef = useRef(1)
   const rafRef = useRef<number>(0)
-  const loadedRef = useRef(false)
+  // useState so the RAF draw effect re-triggers when loading completes
+  const [isLoaded, setIsLoaded] = useState(false)
   const { progress } = useScrollProgress(containerRef)
+
+  // --- Draw a frame to canvas ---
+  // Uses window.innerWidth/Height — always reliable on client,
+  // avoids canvas.offsetWidth timing issues with DPR scaling
+  const drawFrame = useCallback((frameIndex: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const img = framesRef.current[frameIndex]
+    if (!img || !img.naturalWidth) return
+
+    const dpr = window.devicePixelRatio || 1
+    const logicalW = window.innerWidth
+    const logicalH = window.innerHeight
+
+    // Object-fit: contain — center image preserving aspect ratio
+    const scale = Math.min(logicalW / img.naturalWidth, logicalH / img.naturalHeight)
+    const drawW = img.naturalWidth * scale
+    const drawH = img.naturalHeight * scale
+    const offsetX = (logicalW - drawW) / 2
+    const offsetY = (logicalH - drawH) / 2
+
+    // Reset transform before drawing to avoid scale accumulation
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.fillStyle = '#0A0805'
+    ctx.fillRect(0, 0, logicalW, logicalH)
+    ctx.drawImage(img, offsetX, offsetY, drawW, drawH)
+  }, [])
+
+  // --- Canvas sizing (DPR-aware) ---
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = window.innerWidth * dpr
+      canvas.height = window.innerHeight * dpr
+      drawFrame(currentFrameRef.current)
+    }
+
+    resize()
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [drawFrame])
 
   // --- Frame Preloading ---
   useEffect(() => {
@@ -50,48 +97,21 @@ export default function ScrollCanvas({
         onLoadProgress(pct)
         if (loaded === total) {
           framesRef.current = images
-          loadedRef.current = true
           onLoadComplete()
-          // Draw the first frame immediately
-          drawFrame(1)
+          // setIsLoaded triggers the RAF draw effect to run
+          setIsLoaded(true)
         }
       }
 
       img.onload = onDone
-      img.onerror = onDone // don't block forever on missing frames
+      img.onerror = onDone
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // --- Draw a frame to canvas ---
-  const drawFrame = useCallback((frameIndex: number) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const img = framesRef.current[frameIndex]
-    if (!img) return
-
-    const logicalW = canvas.offsetWidth
-    const logicalH = canvas.offsetHeight
-
-    // Object-fit: contain — center image preserving aspect ratio
-    const scaleX = logicalW / img.naturalWidth
-    const scaleY = logicalH / img.naturalHeight
-    const scale = Math.min(scaleX, scaleY)
-    const drawW = img.naturalWidth * scale
-    const drawH = img.naturalHeight * scale
-    const offsetX = (logicalW - drawW) / 2
-    const offsetY = (logicalH - drawH) / 2
-
-    ctx.fillStyle = '#0A0805'
-    ctx.fillRect(0, 0, logicalW, logicalH)
-    ctx.drawImage(img, offsetX, offsetY, drawW, drawH)
-  }, [])
-
   // --- RAF-driven render on scroll ---
+  // This effect runs whenever progress changes OR isLoaded becomes true
   useEffect(() => {
-    if (!loadedRef.current) return
+    if (!isLoaded) return
 
     const isMobile = window.matchMedia('(max-width: 767px)').matches
     const frameStep = isMobile ? 2 : 1
@@ -100,36 +120,12 @@ export default function ScrollCanvas({
     const rawFrame = Math.round(progress * (effectiveFrames - 1))
     const actualFrame = Math.max(1, Math.min(TOTAL_FRAMES, rawFrame * frameStep + 1))
 
-    if (actualFrame !== currentFrameRef.current) {
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
       currentFrameRef.current = actualFrame
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(() => drawFrame(actualFrame))
-    }
-  }, [progress, drawFrame])
-
-  // --- Canvas sizing (DPR-aware) ---
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const resize = () => {
-      const dpr = window.devicePixelRatio || 1
-      // Set CSS size
-      canvas.style.width = '100vw'
-      canvas.style.height = '100vh'
-      // Set pixel buffer size
-      canvas.width = window.innerWidth * dpr
-      canvas.height = window.innerHeight * dpr
-      const ctx = canvas.getContext('2d')
-      if (ctx) ctx.scale(dpr, dpr)
-      // Redraw current frame after resize
-      drawFrame(currentFrameRef.current)
-    }
-
-    resize()
-    window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [drawFrame])
+      drawFrame(actualFrame)
+    })
+  }, [progress, isLoaded, drawFrame])
 
   return (
     <canvas
